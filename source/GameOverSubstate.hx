@@ -1,6 +1,7 @@
 package;
 
 import flixel.FlxG;
+import flixel.FlxSprite;
 import flixel.FlxObject;
 import flixel.FlxSubState;
 import flixel.math.FlxMath;
@@ -13,24 +14,52 @@ import flixel.tweens.FlxTween;
 class GameOverSubstate extends MusicBeatSubstate
 {
 	public var boyfriend:Boyfriend;
+	public var background:FlxSprite;
+	public var animatedObject:FlxSprite;
 	var camFollow:FlxPoint;
 	var camFollowPos:FlxObject;
 	var updateCamera:Bool = false;
+	var playingDeathSound:Bool = false;
 
 	var stageSuffix:String = "";
 
-	public static var characterName:String = 'bf';
+	public static var characterName:String = 'bf-dead';
 	public static var deathSoundName:String = 'fnf_loss_sfx';
 	public static var loopSoundName:String = 'gameOver';
 	public static var endSoundName:String = 'gameOverEnd';
+	public static var backgroundName:String = '';
+
+	//only one object// if you wan more then cry bout it
+	public static var getAnimatedObjectFrame:String = '';
+	public static var animatedObjectAnimName:String = '';
+	public static var animatedObjectAnimXML:String = '';
+	public static var animatedObjectPlayAnim:String = '';
+	public static var animatedObjectX:Float = 0;
+	public static var animatedObjectY:Float = 0;
+	public static var backgroundNameObjectX:Float = 0;
+	public static var backgroundNameObjectY:Float = 0;
+	public static var characterNameX:Float = 0;
+	public static var characterNameY:Float = 0;
 
 	public static var instance:GameOverSubstate;
 
 	public static function resetVariables() {
-		characterName = 'bf';
+		characterName = 'bf-dead';
 		deathSoundName = 'fnf_loss_sfx';
 		loopSoundName = 'gameOver';
 		endSoundName = 'gameOverEnd';
+		backgroundName = '';
+
+
+		//Only 1 object//                   
+		getAnimatedObjectFrame = '';
+		animatedObjectAnimName = '';
+		animatedObjectAnimXML = '';
+		animatedObjectPlayAnim = '';
+		animatedObjectX = 0;
+		animatedObjectY = 0;
+		characterNameX = 0;
+		characterNameY = 0;
 	}
 
 	override function create()
@@ -49,10 +78,29 @@ class GameOverSubstate extends MusicBeatSubstate
 
 		Conductor.songPosition = 0;
 
+		background = new FlxSprite().loadGraphic(Paths.image(backgroundName));
+		add(background); //background needs to be added first lmao don't even fucking try to change this
+
+		animatedObject = new FlxSprite();
+		animatedObject.frames = Paths.getSparrowAtlas(getAnimatedObjectFrame);
+		animatedObject.animation.addByPrefix(animatedObjectAnimName, animatedObjectAnimXML);
+		animatedObject.animation.play(animatedObjectPlayAnim);
+		animatedObject.x += animatedObjectX;
+		animatedObject.y += animatedObjectY;
+		add(animatedObject);
+
+
 		boyfriend = new Boyfriend(x, y, characterName);
-		boyfriend.x += boyfriend.positionArray[0];
-		boyfriend.y += boyfriend.positionArray[1];
-		add(boyfriend);
+		if (characterNameX == 0 || characterNameY == 0) {
+			boyfriend.x += boyfriend.positionArray[0];
+			boyfriend.y += boyfriend.positionArray[1];
+			add(boyfriend);
+		} else if (characterNameX < 1 && characterNameY < 1) {
+			boyfriend.x += characterNameX;
+			boyfriend.y += characterNameY;
+			add(boyfriend);
+		}
+
 
 		camFollow = new FlxPoint(boyfriend.getGraphicMidpoint().x, boyfriend.getGraphicMidpoint().y);
 
@@ -65,8 +113,6 @@ class GameOverSubstate extends MusicBeatSubstate
 
 		boyfriend.playAnim('firstDeath');
 
-		var exclude:Array<Int> = [];
-
 		camFollowPos = new FlxObject(0, 0, 1, 1);
 		camFollowPos.setPosition(FlxG.camera.scroll.x + (FlxG.camera.width / 2), FlxG.camera.scroll.y + (FlxG.camera.height / 2));
 		add(camFollowPos);
@@ -77,7 +123,15 @@ class GameOverSubstate extends MusicBeatSubstate
 	{
 		super.update(elapsed);
 
+
+
+
 		PlayState.instance.callOnLuas('onUpdate', [elapsed]);
+		if (backgroundName == '')
+		{
+			background.visible = false;
+		}
+
 		if(updateCamera) {
 			var lerpVal:Float = CoolUtil.boundTo(elapsed * 0.6, 0, 1);
 			camFollowPos.setPosition(FlxMath.lerp(camFollowPos.x, camFollow.x, lerpVal), FlxMath.lerp(camFollowPos.y, camFollow.y, lerpVal));
@@ -93,7 +147,9 @@ class GameOverSubstate extends MusicBeatSubstate
 			FlxG.sound.music.stop();
 			PlayState.deathCounter = 0;
 			PlayState.seenCutscene = false;
+			PlayState.chartingMode = false;
 
+			WeekData.loadTheFirstEnabledMod();
 			if (PlayState.isStoryMode)
 				MusicBeatState.switchState(new StoryMenuState());
 			else
@@ -103,7 +159,7 @@ class GameOverSubstate extends MusicBeatSubstate
 			PlayState.instance.callOnLuas('onGameOverConfirm', [false]);
 		}
 
-		if (boyfriend.animation.curAnim.name == 'firstDeath')
+		if (boyfriend.animation.curAnim != null && boyfriend.animation.curAnim.name == 'firstDeath')
 		{
 			if(boyfriend.animation.curAnim.curFrame >= 12 && !isFollowingAlready)
 			{
@@ -112,9 +168,27 @@ class GameOverSubstate extends MusicBeatSubstate
 				isFollowingAlready = true;
 			}
 
-			if (boyfriend.animation.curAnim.finished)
+			if (boyfriend.animation.curAnim.finished && !playingDeathSound)
 			{
-				coolStartDeath();
+				if (PlayState.SONG.stage == 'tank')
+				{
+					playingDeathSound = true;
+					coolStartDeath(0.2);
+					
+					var exclude:Array<Int> = [];
+					//if(!ClientPrefs.cursing) exclude = [1, 3, 8, 13, 17, 21];
+
+					FlxG.sound.play(Paths.sound('jeffGameover/jeffGameover-' + FlxG.random.int(1, 25, exclude)), 1, false, null, true, function() {
+						if(!isEnding)
+						{
+							FlxG.sound.music.fadeIn(0.2, 1, 4);
+						}
+					});
+				}
+				else
+				{
+					coolStartDeath();
+				}
 				boyfriend.startedDeath = true;
 			}
 		}
