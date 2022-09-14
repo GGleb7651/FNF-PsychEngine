@@ -27,6 +27,7 @@ import flash.net.FileFilter;
 import haxe.Json;
 import DialogueBoxPsych;
 import lime.system.Clipboard;
+import Alphabet;
 #if sys
 import sys.io.File;
 #end
@@ -37,7 +38,7 @@ class DialogueEditorState extends MusicBeatState
 {
 	var character:DialogueCharacter;
 	var box:FlxSprite;
-	var daText:Alphabet;
+	var daText:TypedAlphabet;
 
 	var selectedText:FlxText;
 	var animText:FlxText;
@@ -218,7 +219,7 @@ class DialogueEditorState extends MusicBeatState
 		character.playAnim(); //Plays random animation
 		characterAnimSpeed();
 
-		if(character.animation.curAnim != null) {
+		if(character.animation.curAnim != null && character.jsonFile.animations != null) {
 			animText.text = 'Animation: ' + character.jsonFile.animations[curAnim].anim + ' (' + (curAnim + 1) +' / ' + character.jsonFile.animations.length + ') - Press W or S to scroll';
 		} else {
 			animText.text = 'ERROR! NO ANIMATIONS FOUND';
@@ -230,7 +231,6 @@ class DialogueEditorState extends MusicBeatState
 	private static var DEFAULT_BUBBLETYPE:String = "normal";
 	function reloadText(speed:Float = 0.05) {
 		if(daText != null) {
-			daText.killTheTimer();
 			daText.kill();
 			remove(daText);
 			daText.destroy();
@@ -240,9 +240,11 @@ class DialogueEditorState extends MusicBeatState
 
 		var textToType:String = lineInputText.text;
 		if(textToType == null || textToType.length < 1) textToType = ' ';
-	
-		Alphabet.setDialogueSound(soundInputText.text);
-		daText = new Alphabet(DialogueBoxPsych.DEFAULT_TEXT_X, DialogueBoxPsych.DEFAULT_TEXT_Y, textToType, false, true, speed, 0.7);
+
+		daText = new TypedAlphabet(DialogueBoxPsych.DEFAULT_TEXT_X, DialogueBoxPsych.DEFAULT_TEXT_Y, textToType, speed, false);
+		daText.sound = soundInputText.text;
+		daText.scaleX = 0.7;
+		daText.scaleY = 0.7;
 		add(daText);
 
 		if(speed > 0) {
@@ -256,7 +258,7 @@ class DialogueEditorState extends MusicBeatState
 		// Updating Discord Rich Presence
 		var rpcText:String = lineInputText.text;
 		if(rpcText == null || rpcText.length < 1) rpcText = '(Empty)';
-		if(rpcText.length < 3) rpcText += '  '; //Fixes a bug on RPC that triggers an error when the text is too short
+		if(rpcText.length < 3) rpcText += '   '; //Fixes a bug on RPC that triggers an error when the text is too short
 		DiscordClient.changePresence("Dialogue Editor", rpcText);
 		#end
 	}
@@ -328,11 +330,6 @@ class DialogueEditorState extends MusicBeatState
 				FlxG.sound.volumeUpKeys = [];
 				blockInput = true;
 
-				if(FlxG.keys.pressed.CONTROL && FlxG.keys.justPressed.V && Clipboard.text != null) { //Copy paste
-					inputText.text = ClipboardAdd(inputText.text);
-					inputText.caretIndex = inputText.text.length;
-					getEvent(FlxUIInputText.CHANGE_EVENT, inputText, null, []);
-				}
 				if(FlxG.keys.justPressed.ENTER) {
 					if(inputText == lineInputText) {
 						inputText.text += '\\n';
